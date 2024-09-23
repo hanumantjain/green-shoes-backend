@@ -1,11 +1,18 @@
-const mongoose = require('mongoose')
+const mysql = require('mysql')
 
-const AdminSchema = mongoose.Schema({
-    name: { type: String },
-    username: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
-    createdAt: { type: Date, default: Date.now }
-})
+const AdminSchema = (db) => {
+    const query = `
+        CREATE TABLE IF NOT EXISTS admins (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255),
+        username VARCHAR(255) NOT NULL UNIQUE,
+        password VARCHAR(255) NOT NULL,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `
+    db.query(query, (err, result)=> {
+        if (err) throw err
+    })
+}
 
-const AdminModel = mongoose.model('admins',AdminSchema)
-module.exports = AdminModel
+module.exports = AdminSchema
