@@ -1,6 +1,6 @@
 const express = require('express')
 const bcrypt = require('bcryptjs/dist/bcrypt')
-const database = require('../connection/sqlconnect')
+const pool = require('../connection/postgreSQLConnect')
 const router = express.Router()
 
 //Admin Register 
@@ -8,8 +8,10 @@ router.post('/adminHome', async (req, res) => {
     const {name, username, password} = req.body
 
     try{
-        const [AdminExists] = await database.promise().query('SELECT * FROM admins WHERE username =?',[username])
-        if(AdminExists.length > 0){
+        const result = await pool.query('SELECT * FROM admins WHERE username = $1',[username])
+        const adminExists = result.rows
+
+        if(adminExists.length > 0){
             return res.json({message: 'Admin exists'})
         }
 
@@ -18,8 +20,10 @@ router.post('/adminHome', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, salt)
 
         //Create new admin
-        await database.promise().query('INSERT INTO admins (name, username, password) VALUES (?, ?, ?)',[name, username, hashedPassword])
+        await pool.query('INSERT INTO admins (name, username, password) VALUES ($1, $2, $3)',
+            [name, username, hashedPassword])
         res.json({message: 'Admin Created successfully'})
+
     }   catch (error){
             res.json({message: 'Server Error'})
         }
@@ -31,8 +35,8 @@ router.post('/admin', async (req, res) => {
     const {username, password} = req.body
 
     try{
-        const [AdminExists] = await database.promise().query('SELECT * FROM admins WHERE username =?',[username])
-
+        const result = await pool.query('SELECT * FROM admins WHERE username = $1',[username])
+        const admin = result.rows[0]
         //checking username
         if(!admin){
             return res.json({message: 'Admin not found'})
@@ -43,6 +47,7 @@ router.post('/admin', async (req, res) => {
         if(!isMatch){
             return res.json({message: 'Invalid credentials'})
         }
+        return res.json({message: 'Login Successful'})
     }catch (error){
         res.json({message: 'Server Error'})
     }
@@ -50,10 +55,12 @@ router.post('/admin', async (req, res) => {
 
 //User Register
 router.post('/userlogin', async (req, res) => {
-    const {firstName, lastName, userName, address, phoneNumber, password} = req.body
+    const {firstName, lastName, userName, userStreet1, userStreet2, userCity, userState, userZipCode, userCountry, userPhoneNumber, userPassword} = req.body
     try{
-        const [UserExists] = await database.promise().query('SELECT * FROM users WHERE userName =?',[userName])
-        if(UserExists.length > 0){
+        const result = await pool.query('SELECT * FROM users WHERE userName = $1',[userName])
+        const userExists = result.rows
+
+        if(userExists.length > 0){
             return res.json({message: 'User Exits'})
         }
 
@@ -62,10 +69,10 @@ router.post('/userlogin', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, salt)
 
         //Create new user
-        await database.promise().query(`INSERT INTO users 
-                                            (firstName, lastName, userName, address, phoneNumber, password) 
-                                            VALUES (?, ?, ?, ?, ?, ?)`,
-                                            [firstName, lastName, userName, address, phoneNumber, hashedPassword])
+        await pool.query(`INSERT INTO users 
+                                            (firstName, lastName, userName, userStreet1, userStreet2, userCity, userState, userZipCode, userCountry, userPhoneNumber, userPassword) 
+                                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+                                            [firstName, lastName, userName, userStreet1, userStreet2, userCity, userState, userZipCode, userCountry, userPhoneNumber, hashedPassword])
         res.json({message: 'User Created Successfully'})
     }catch (error){
             res.json({message: 'Server Error'})
@@ -78,7 +85,9 @@ router.post('/user', async(req, res)=> {
 
     try{
 
-        const [UserExists] = await database.promise.query('SELECT * FROM users  WHERE username =?',[userName])
+        const result = await pool.query('SELECT * FROM users  WHERE username = $1',[userName])
+        const user = result.rows[0]
+
         if(!user){
             return res.json({message: 'User not found'})
         }
@@ -88,6 +97,7 @@ router.post('/user', async(req, res)=> {
         if(!isMatch){
             return res.json({message: 'Invalid Credentials'})
         }
+        return res.json({message: 'Login Successful'})
     }catch (error){
         return res.json({message: 'Server Error'})
     }
