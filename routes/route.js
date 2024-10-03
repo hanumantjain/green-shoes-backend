@@ -39,17 +39,17 @@ router.post('/admin', async (req, res) => {
         const admin = result.rows[0]
         //checking username
         if(!admin){
-            return res.json({message: 'Admin not found'})
+            return res.status(404).json({message: 'Admin not found'})
         }
 
         //checking password
         const isMatch = await bcrypt.compare(password, admin.password)
         if(!isMatch){
-            return res.json({message: 'Invalid credentials'})
+            return res.status(401).json({message: 'Invalid credentials'})
         }
-        return res.json({message: 'Login Successful'})
+        return res.status(200).json({message: 'Login Successful'})
     }catch (error){
-        res.json({message: 'Server Error'})
+        res.status(500).json({message: 'Server Error'})
     }
 })
 

@@ -8,18 +8,22 @@ const pool = new Pool({
     user: process.env.USER,
     password: process.env.PASSWORD,
     database: process.env.DATABASE,
-    port: process.env.PORT,
+    port: process.env.PORT || 5432,
 })
 
-pool.connect((err, database) => {
+pool.connect((err, client, release) => {
     if (err) throw err
     else {
         console.log('PostgreSQL is connected')
         
-        AdminSchema(database)
-        UserSchema(database)
-
-        release()
+        try {
+            AdminSchema(client)
+            UserSchema(client)
+        } catch (schemaErr) {
+            console.error('Schema error:', schemaErr)
+        } finally {
+            release()
+        }
     }
 })
 

@@ -1,6 +1,6 @@
-const UserSchema = (db) =>{
+const UserSchema = (client) =>{
     const query = `
-    CREATE TABLE IF NOT EXISTS user (
+    CREATE TABLE IF NOT EXISTS users (
         userId SERIAL PRIMARY KEY,
         firstName VARCHAR(255) NOT NULL,
         lastName VARCHAR(255) NOT NULL,
@@ -11,12 +11,14 @@ const UserSchema = (db) =>{
         userState VARCHAR(100) NOT NULL,
         userZipCode VARCHAR(20) NOT NULL,
         userCountry VARCHAR(100) NOT NULL,
-        userPhoneNumber INT NOT NULL,
-        userPassword VARCHAR(255) NOT NULL
-        createdAt TIMESTAMP DEFAULT NOW() 
-    )
+        userPhoneNumber VARCHAR(20) NOT NULL,
+        userPassword VARCHAR(255) NOT NULL,
+        createdAt TIMESTAMP DEFAULT NOW()
+    );
     `
-    db.query(query, (err, result)=> {
+    client.query(query, (err, result)=> {
         if (err) throw err
     })
 }
+
+module.exports = UserSchema

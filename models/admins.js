@@ -1,4 +1,4 @@
-const AdminSchema = (db) => {
+const AdminSchema = (client) => {
     const query = `
         CREATE TABLE IF NOT EXISTS admins (
         id SERIAL PRIMARY KEY,
@@ -8,7 +8,7 @@ const AdminSchema = (db) => {
         createdAt TIMESTAMP DEFAULT NOW()
         )
     `
-    db.query(query, (err, result)=> {
+    client.query(query, (err, result)=> {
         if (err) throw err
     })
 }
