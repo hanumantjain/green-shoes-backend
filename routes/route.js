@@ -12,7 +12,7 @@ router.post('/adminHome', async (req, res) => {
         const adminExists = result.rows
 
         if(adminExists.length > 0){
-            return res.json({message: 'Admin exists'})
+            return res.status(409).json({message: 'Admin exists'})
         }
 
         // hasing the password
@@ -22,10 +22,10 @@ router.post('/adminHome', async (req, res) => {
         //Create new admin
         await pool.query('INSERT INTO admins (name, username, password) VALUES ($1, $2, $3)',
             [name, username, hashedPassword])
-        res.json({message: 'Admin Created successfully'})
+        res.status(200).json({message: 'Admin Created successfully'})
 
     }   catch (error){
-            res.json({message: 'Server Error'})
+            res.staus(500).json({message: 'Server Error'})
         }
     
 })
@@ -53,54 +53,76 @@ router.post('/admin', async (req, res) => {
     }
 })
 
-//User Register
-router.post('/userlogin', async (req, res) => {
-    const {firstName, lastName, userName, userStreet1, userStreet2, userCity, userState, userZipCode, userCountry, userPhoneNumber, userPassword} = req.body
+//Check User
+router.post('/checkUser', async (req, res) => {
+    const { userEmail } = req.body 
     try{
-        const result = await pool.query('SELECT * FROM users WHERE userName = $1',[userName])
-        const userExists = result.rows
-
-        if(userExists.length > 0){
-            return res.json({message: 'User Exits'})
+        const result = await pool.query('SELECT * FROM users WHERE userEmail = $1', [userEmail])
+        const user = result.rows[0]
+        if(!user){
+            return res.status(204).json({message: 'User not found'})
         }
 
+    }catch (error){
+        console.error('Error during user registration:', error)
+        return res.status(500).json({message: 'Server Error'})
+        }
+})
+
+//User Register
+router.post('/userSignUp', async (req, res) => {
+    const {firstName, lastName, userEmail, userPassword} = req.body
+    try{
         // hasing the password
         const salt = await bcrypt.genSalt(10)
-        const hashedPassword = await bcrypt.hash(password, salt)
+        const hashedPassword = await bcrypt.hash(userPassword, salt)
 
         //Create new user
         await pool.query(`INSERT INTO users 
-                                            (firstName, lastName, userName, userStreet1, userStreet2, userCity, userState, userZipCode, userCountry, userPhoneNumber, userPassword) 
-                                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-                                            [firstName, lastName, userName, userStreet1, userStreet2, userCity, userState, userZipCode, userCountry, userPhoneNumber, hashedPassword])
-        res.json({message: 'User Created Successfully'})
+                                            (firstName, lastName, userEmail, userPassword) 
+                                            VALUES ($1, $2, $3, $4)`,
+                                            [firstName, lastName, userEmail, hashedPassword])
+        res.status(200).json({message: 'User Created Successfully'})
     }catch (error){
-            res.json({message: 'Server Error'})
+        console.error('Error during user registration:', error)
+        return res.status(500).json({message: 'Server Error'})
         }
 })
 
 //User Login
 router.post('/user', async(req, res)=> {
-    const { userName, password } = req.body
+    const { userEmail, password } = req.body
 
     try{
 
-        const result = await pool.query('SELECT * FROM users  WHERE username = $1',[userName])
+        const result = await pool.query('SELECT * FROM users  WHERE userEmail = $1',[userEmail])
         const user = result.rows[0]
 
         if(!user){
-            return res.json({message: 'User not found'})
+            return res.status(404).json({message: 'User not found'})
         }
 
         //checkling password
         const isMatch = await bcrypt.compare(password, user.password)
         if(!isMatch){
-            return res.json({message: 'Invalid Credentials'})
+            return res.status(401).json({message: 'Invalid Credentials'})
         }
-        return res.json({message: 'Login Successful'})
+        return res.status(200).json({message: 'Login Successful'})
     }catch (error){
-        return res.json({message: 'Server Error'})
+        return res.status(500).json({message: 'Server Error'})
     }
 })
 
+router.post('/address', async(req, res) => {
+    const {userStreet1, userStreet2, userCity, userState, userCountry, userZipCode, userPhoneNumber } = req.body 
+     try{
+            await pool.query(`INSERT INTO users 
+                (userStreet1, userStreet2, userCity, userState, userCountry, userZipCode, userPhoneNumber) 
+                VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                [userStreet1, userStreet2, userCity, userState, userCountry, userZipCode, userPhoneNumber])
+            res.status(200).json({message: 'Address Added'})
+     } catch (error){
+        return res.status(500).json({message: 'Server Error'})
+     }
+})
 module.exports = router

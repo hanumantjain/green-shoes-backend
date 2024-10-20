@@ -2,6 +2,7 @@ const { Pool } = require('pg')
 require('dotenv').config()
 const AdminSchema = require('../models/admins')
 const UserSchema = require('../models/user')
+const UserAddressSchema = require('../models/userAddress')
 
 const pool = new Pool({
     host: process.env.HOST,
@@ -19,6 +20,7 @@ pool.connect((err, client, release) => {
         try {
             AdminSchema(client)
             UserSchema(client)
+            UserAddressSchema(client)
         } catch (schemaErr) {
             console.error('Schema error:', schemaErr)
         } finally {
