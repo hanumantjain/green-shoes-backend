@@ -1,5 +1,6 @@
 const express = require('express')
 const bcrypt = require('bcryptjs/dist/bcrypt')
+const jwt = require('jsonwebtoken')
 const pool = require('../connection/postgreSQLConnect')
 const router = express.Router()
 
@@ -64,8 +65,6 @@ router.post('/checkUser', async (req, res) => {
         }else{
             return res.status(204).json({message: 'User not found'})
         }
-        
-
     }catch (error){
         console.error('Error during user registration:', error)
         return res.status(500).json({message: 'Server Error'})
@@ -92,27 +91,24 @@ router.post('/userSignUp', async (req, res) => {
         }
 })
 
-//User Login
-router.post('/user', async(req, res)=> {
-    const { userEmail, password } = req.body
+//UserLogin
+router.post('/userLogin', async (req, res) => {
+    const { userEmail, userPassword } = req.body
+    try {
+        const result = await pool.query('SELECT * FROM users WHERE userEmail = $1', [userEmail])
+        const user = result.rows[0];
 
-    try{
-
-        const result = await pool.query('SELECT * FROM users  WHERE userEmail = $1',[userEmail])
-        const user = result.rows[0]
-
-        if(!user){
-            return res.status(404).json({message: 'User not found'})
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' })
+        }
+        const isMatch = await bcrypt.compare(userPassword, user.userpassword)
+        if (!isMatch) {
+            return res.status(401).json({ message: 'Invalid credentials' })
         }
 
-        //checkling password
-        const isMatch = await bcrypt.compare(password, user.password)
-        if(!isMatch){
-            return res.status(401).json({message: 'Invalid Credentials'})
-        }
-        return res.status(200).json({message: 'Login Successful'})
-    }catch (error){
-        return res.status(500).json({message: 'Server Error'})
+        return res.status(200).json({ message: 'Login Successful' })
+    } catch (error) {
+        return res.status(500).json({ message: 'Server Error' })
     }
 })
 
