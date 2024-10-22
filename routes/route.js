@@ -59,9 +59,12 @@ router.post('/checkUser', async (req, res) => {
     try{
         const result = await pool.query('SELECT * FROM users WHERE userEmail = $1', [userEmail])
         const user = result.rows[0]
-        if(!user){
+        if(user){
+            return res.status(200).json({message: 'User found'})
+        }else{
             return res.status(204).json({message: 'User not found'})
         }
+        
 
     }catch (error){
         console.error('Error during user registration:', error)
