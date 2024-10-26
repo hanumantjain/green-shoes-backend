@@ -2,7 +2,9 @@ const express = require('express')
 const bcrypt = require('bcryptjs/dist/bcrypt')
 const jwt = require('jsonwebtoken')
 const pool = require('../connection/postgreSQLConnect')
+const authenticateJWT = require('../middleware/authenticateJWT')
 const router = express.Router()
+require('dotenv').config()
 
 //Admin Register 
 router.post('/adminHome', async (req, res) => {
@@ -106,8 +108,23 @@ router.post('/userLogin', async (req, res) => {
             return res.status(401).json({ message: 'Invalid credentials' })
         }
 
+        //Generate JWT tokens
+        const token = jwt.sign({ 
+            userId: user.id, 
+            userEmail: user.userEmail 
+        }, process.env.JWT_SECRET, {
+            expiresIn: '1h'
+        })
+
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 60 * 60 * 24 * 30 * 1000  //30 days
+        })
+
         return res.status(200).json({ message: 'Login Successful' })
     } catch (error) {
+        console.log(error)
         return res.status(500).json({ message: 'Server Error' })
     }
 })
@@ -123,5 +140,21 @@ router.post('/address', async(req, res) => {
      } catch (error){
         return res.status(500).json({message: 'Server Error'})
      }
+})
+
+//protected routes
+router.get('/validateToken', authenticateJWT, (req, res) => {
+    const userEmail = req.user.userEmail
+    res.status(200).json({ userEmail })
+})
+
+//user logout
+router.post('/logout', (req, res) => {
+    res.clearCookie('token');
+    return res.status(200).json({ message: 'Logged out successfully' });
+})
+
+router.get('/userProfile', authenticateJWT, (req, res) => {
+    return res.status(200).json({ user: req.user })
 })
 module.exports = router
