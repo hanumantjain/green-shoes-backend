@@ -1,8 +1,6 @@
 const express = require('express')
 const bcrypt = require('bcryptjs/dist/bcrypt')
-const jwt = require('jsonwebtoken')
 const pool = require('../connection/postgreSQLConnect')
-const authenticateJWT = require('../middleware/authenticateJWT')
 const router = express.Router()
 require('dotenv').config()
 
@@ -86,7 +84,8 @@ router.post('/userSignUp', async (req, res) => {
                                             (firstName, lastName, userEmail, userPassword) 
                                             VALUES ($1, $2, $3, $4)`,
                                             [firstName, lastName, userEmail, hashedPassword])
-        res.status(200).json({message: 'User Created Successfully'})
+
+        res.status(200).json({ message: 'User Created Successfully'})
     }catch (error){
         console.error('Error during user registration:', error)
         return res.status(500).json({message: 'Server Error'})
@@ -108,21 +107,7 @@ router.post('/userLogin', async (req, res) => {
             return res.status(401).json({ message: 'Invalid credentials' })
         }
 
-        //Generate JWT tokens
-        const token = jwt.sign({ 
-            userId: user.id, 
-            userEmail: user.userEmail 
-        }, process.env.JWT_SECRET, {
-            expiresIn: '1h'
-        })
-
-        res.cookie('token', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            maxAge: 60 * 60 * 24 * 30 * 1000  //30 days
-        })
-
-        return res.status(200).json({ message: 'Login Successful' })
+        return res.status(200).json({ message: 'Login Successful'})
     } catch (error) {
         console.log(error)
         return res.status(500).json({ message: 'Server Error' })
@@ -142,19 +127,4 @@ router.post('/address', async(req, res) => {
      }
 })
 
-//protected routes
-router.get('/validateToken', authenticateJWT, (req, res) => {
-    const userEmail = req.user.userEmail
-    res.status(200).json({ userEmail })
-})
-
-//user logout
-router.post('/logout', (req, res) => {
-    res.clearCookie('token');
-    return res.status(200).json({ message: 'Logged out successfully' });
-})
-
-router.get('/userProfile', authenticateJWT, (req, res) => {
-    return res.status(200).json({ user: req.user })
-})
 module.exports = router
