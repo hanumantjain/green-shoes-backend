@@ -1,4 +1,4 @@
-const UserSchema = (client) =>{
+const UserSchema = async (client) =>{
     const query = `
     CREATE TABLE IF NOT EXISTS users (
         userId SERIAL PRIMARY KEY,
@@ -9,7 +9,7 @@ const UserSchema = (client) =>{
         createdAt TIMESTAMP DEFAULT NOW()
     );
     `
-    client.query(query, (err, result)=> {
+    await client.query(query, (err, result)=> {
         if (err) throw err
     })
 }

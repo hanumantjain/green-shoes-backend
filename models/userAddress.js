@@ -1,4 +1,4 @@
-const UserAddressSchema = (client) =>{
+const UserAddressSchema = async (client) =>{
     const query = `
     CREATE TABLE IF NOT EXISTS userAddress (
         addressId SERIAL PRIMARY KEY,
@@ -14,7 +14,7 @@ const UserAddressSchema = (client) =>{
         FOREIGN KEY (userId) REFERENCES users(userId) ON DELETE CASCADE
     );
     `
-    client.query(query, (err, result)=> {
+    await client.query(query, (err, result)=> {
         if (err) throw err
     })
 }
