@@ -127,4 +127,57 @@ router.post('/address', async(req, res) => {
      }
 })
 
+//Add Products
+router.post('/addProducts', async(req, res) => {
+    const { name, description, price, category_id, image_url, sizes } = req.body
+    if (!name || !price || !category_id || !sizes) {
+        return res.status(400).json({ error: "Missing required fields" });
+    }
+    try {
+        await pool.query('BEGIN')
+
+        const addProductQuery = `
+            INSERT INTO products (name, description, price, category_id, image_url, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            RETURNING product_id
+        `
+        const productResult = await pool.query(addProductQuery, [ name, description, price, category_id, image_url])
+        const productId = productResult.rows[0].product_id
+        console.log(productId)
+        const addSizeQury = `
+            INSERT INTO product_sizes (product_id, size_id, stock_quantity, created_at, updated_at)
+            VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `
+        for (const size of sizes) {
+            const { size_id, quantity } = size
+            await pool.query(addSizeQury, [productId, size_id, quantity]);
+        }
+        await pool.query('COMMIT')
+        res.status(201).json({ message: "Product added successfully", productId })
+    } catch  (error) {
+        await pool.query('ROLLBACK')
+        res.status(500).json({error: 'An error'})
+    }
+})
+
+//Get categories
+router.get('/getCategory', async(req, res) => {
+    try{
+        const result = await pool.query(`SELECT * FROM categories`)
+        res.status(200).json(result.rows)
+    }catch (error){
+        return res.status(500).json({message: 'Server Error'})
+    }
+})
+
+//Get Sizes
+router.get('/getSizes', async(req, res) => {
+    try{
+        const result = await pool.query(`SELECT * FROM sizes`)
+        res.status(200).json(result.rows)
+    }catch (error){
+        return res.status(500).json({message: 'Server Error'})
+    }
+})
+
 module.exports = router
