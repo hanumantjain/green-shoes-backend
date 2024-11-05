@@ -186,7 +186,7 @@ router.get('/getProducts/:id', async (req, res) => {
             LEFT JOIN product_sizes ps ON p.product_id = ps.product_id
             LEFT JOIN sizes s ON ps.size_id = s.size_id
             WHERE p.product_id = $1
-            GROUP BY p.product_id, c.category_name;
+            GROUP BY p.product_id, c.category_name
             `, [productId])
 
             if (result.rows.length === 0){
