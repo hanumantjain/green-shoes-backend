@@ -12,9 +12,24 @@ const ProductsSchema = async (client) =>{
     FOREIGN KEY (category_id) REFERENCES Categories(category_id) ON DELETE SET NULL
     );
     `
+    const query1=`
+    CREATE TYPE fix_type AS ENUM ('active', 'inactive');
+    `
+
+    const query2=`
+    ALTER TABLE products
+    ADD COLUMN status fix_type DEFAULT 'active',
+    ADD COLUMN color VARCHAR(50);
+    `
     await client.query(query, (err, result)=> {
         if (err) throw err
     })
+    // await client.query(query1, (err, result)=> {
+    //     if (err) throw err
+    // })
+    // await client.query(query2, (err, result)=> {
+    //     if (err) throw err
+    // })
 }
 
 module.exports = ProductsSchema
