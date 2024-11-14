@@ -28,6 +28,7 @@ const initializeDatabase = async () => {
         await ProductsSchema(client)
         await SizeSchema(client)
         await ProductSizeSchema(client)
+        
         console.log("All tables created successfully.")
     } catch (error) {
         console.error("Error creating schema:", error)

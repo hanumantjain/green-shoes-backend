@@ -128,20 +128,21 @@ router.post('/address', async(req, res) => {
 })
 
 //Add Products
-router.post('/addProducts', async(req, res) => {
-    const { name, description, price, category_id, image_url, sizes } = req.body
-    if (!name || !price || !category_id || !sizes) {
+router.post('/addProducts', async (req, res) => {
+    const { name, description, price, category_id, image_url, sizes, color } = req.body
+    if (!name || !price || !category_id || !sizes || !color) {
         return res.status(400).json({ error: "Missing required fields" });
     }
+    console.log(req.body)
     try {
         await pool.query('BEGIN')
 
         const addProductQuery = `
-            INSERT INTO products (name, description, price, category_id, image_url, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            INSERT INTO products (name, description, price, category_id, image_url, color, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             RETURNING product_id
         `
-        const productResult = await pool.query(addProductQuery, [ name, description, price, category_id, image_url])
+        const productResult = await pool.query(addProductQuery, [ name, description, price, category_id, image_url, color])
         const productId = productResult.rows[0].product_id
         console.log(productId)
         const addSizeQury = `
@@ -159,6 +160,7 @@ router.post('/addProducts', async(req, res) => {
         res.status(500).json({error: 'An error'})
     }
 })
+
 
 //Get Products
 router.get('/getProducts', async (req, res) => {
@@ -213,6 +215,16 @@ router.get('/getCategory', async(req, res) => {
 router.get('/getSizes', async(req, res) => {
     try{
         const result = await pool.query(`SELECT * FROM sizes`)
+        res.status(200).json(result.rows)
+    }catch (error){
+        return res.status(500).json({message: 'Server Error'})
+    }
+})
+
+//Get Color
+router.get('/getColor', async(req, res) => {
+    try{
+        const result = await pool.query(`SELECT * FROM color`)
         res.status(200).json(result.rows)
     }catch (error){
         return res.status(500).json({message: 'Server Error'})
