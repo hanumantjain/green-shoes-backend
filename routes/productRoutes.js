@@ -51,41 +51,64 @@ router.post('/addProducts', async (req, res) => {
 //Get Products
 router.get('/getProducts', async (req, res) => {
     try {
-        const result = await pool.query(`SELECT product_id, name, description, price, image_url FROM products`)
-        res.status(200).json(result.rows)
-    } catch (error) {
-        return res.status(500).json({message: 'Server Error'})
+      const result = await pool.query(`
+        SELECT product_id, 
+               name, 
+               description, 
+               price, 
+               color, 
+               category_name, 
+               image_urls[1] AS image_url -- Get the first image
+        FROM products
+        JOIN categories ON products.category_id = categories.category_id;
+      `);
+      
+      // Return the result as JSON
+      res.status(200).json(result.rows);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Failed to fetch products' });
     }
-})
+  });
 
 //Get Product by id
 router.get('/getProducts/:id', async (req, res) => {
-    const productId = parseInt(req.params.id)
+    const productId = parseInt(req.params.id);
 
-    try{
+    try {
         const result = await pool.query(`
-            SELECT p.product_id, p.name, p.description, p.price, p.image_url, p.color, c.category_name,
+            SELECT 
+                p.product_id, 
+                p.name, 
+                p.description, 
+                p.price, 
+                p.image_urls, 
+                p.color, 
+                c.category_name,
+                p.environmental_message,
                 json_agg(json_build_object(
                     'size_label', s.size_label,
                     'stock_quantity', ps.stock_quantity
-                )) AS sizes
+                ) ORDER BY s.size_label) AS sizes
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.category_id
             LEFT JOIN product_sizes ps ON p.product_id = ps.product_id
             LEFT JOIN sizes s ON ps.size_id = s.size_id
             WHERE p.product_id = $1
             GROUP BY p.product_id, c.category_name
-            `, [productId])
+        `, [productId]);
 
-            if (result.rows.length === 0){
-                return res.status(404).json({ error: 'Product not found' })
-            }
-            res.status(200).json(result.rows[0])
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Product not found' });
+        }
 
+        res.status(200).json(result.rows[0]);
     } catch (error) {
-        return res.status(500).json({message: 'Server Error'})
+        console.error(error);
+        return res.status(500).json({ message: 'Server Error', error: error.message });
     }
-})
+});
+
 
 //Get categories
 router.get('/getCategory', async(req, res) => {
@@ -97,48 +120,60 @@ router.get('/getCategory', async(req, res) => {
     }
 })
 
-//Edit product
+// Edit product route
 router.put('/products/:id', async (req, res) => {
-    const productId = parseInt(req.params.id)
-    const { name, description, price, image_urls, color, environmental_message, sizes } = req.body
+    const productId = parseInt(req.params.id);
+    const { name, description, price, image_urls, color, environmental_message, sizes } = req.body;
 
     try {
-        await pool.query('BEGIN');
+        await pool.query('BEGIN'); // Start transaction
 
+        // Update the product details (name, description, price, image_urls, color, and environmental_message)
         const updateProductQuery = `
             UPDATE products
-                SET name = $1, description = $2,  price = $3, image_urls = $4, color = $5, environmental_message = $6, updated_at = CURRENT_TIMESTAMP
-                WHERE product_id = $7
-                RETURNING product_id
-        `
-
-        const result = await pool.query(updateProductQuery, [name, description, price, image_urls, color, environmental_message, productId ])
+            SET 
+                name = $1,
+                description = $2,
+                price = $3,
+                image_urls = $4,
+                color = $5,
+                environmental_message = $6,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE product_id = $7
+            RETURNING product_id;
+        `;
+        
+        const result = await pool.query(updateProductQuery, [name, description, price, image_urls, color, environmental_message, productId]);
 
         if (result.rowCount === 0) {
-            await pool.query('ROLLBACK')
-            return res.status(404).json({ error: 'Product not found' })
+            await pool.query('ROLLBACK'); // Rollback transaction if the product is not found
+            return res.status(404).json({ error: 'Product not found' });
         }
 
-        const deleteSizesQuery = `DELETE FROM product_sizes WHERE product_id = $1 `
-        await pool.query(deleteSizesQuery, [productId])
+        // Delete all existing sizes for this product
+        const deleteSizesQuery = `DELETE FROM product_sizes WHERE product_id = $1;`;
+        await pool.query(deleteSizesQuery, [productId]);
 
+        // Insert the new sizes for this product
         const insertSizeQuery = `
             INSERT INTO product_sizes (product_id, size_id, stock_quantity, created_at, updated_at)
-            VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `
+            VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+        `;
 
         for (const size of sizes) {
             const { size_id, stock_quantity } = size;
-            await pool.query(insertSizeQuery, [productId, size_id, stock_quantity])
+            await pool.query(insertSizeQuery, [productId, size_id, stock_quantity]);
         }
 
-        await pool.query('COMMIT')
-        res.status(200).json({ message: 'Product updated successfully', product_id: productId })
+        await pool.query('COMMIT'); // Commit the transaction
+
+        res.status(200).json({ message: 'Product updated successfully', product_id: productId });
     } catch (error) {
-        await pool.query('ROLLBACK');
-        res.status(500).json({ error: 'An error occurred while updating the product' })
+        await pool.query('ROLLBACK'); // Rollback in case of an error
+        console.error('Error updating product:', error);
+        res.status(500).json({ error: 'An error occurred while updating the product' });
     }
-})
+});
 
 
 //Get categories by ID
