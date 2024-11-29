@@ -46,8 +46,6 @@ router.post('/addProducts', async (req, res) => {
     }
 })
 
-
-
 //Get Products
 router.get('/getProducts', async (req, res) => {
     try {

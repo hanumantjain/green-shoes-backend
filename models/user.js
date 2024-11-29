@@ -1,7 +1,7 @@
 const UserSchema = async (client) =>{
     const query = `
     CREATE TABLE IF NOT EXISTS users (
-        userId SERIAL PRIMARY KEY,
+        user_id SERIAL PRIMARY KEY,
         firstName VARCHAR(255) NOT NULL,
         lastName VARCHAR(255) NOT NULL,
         userEmail VARCHAR(255) UNIQUE NOT NULL,
