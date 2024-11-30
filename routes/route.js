@@ -26,7 +26,7 @@ router.post('/adminHome', async (req, res) => {
         res.status(200).json({message: 'Admin Created successfully'})
 
     }   catch (error){
-            res.staus(500).json({message: 'Server Error'})
+            res.status(500).json({message: 'Server Error'})
         }
     
 })

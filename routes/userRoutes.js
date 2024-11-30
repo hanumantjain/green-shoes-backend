@@ -39,6 +39,18 @@ router.post('/addToCart', async (req, res) => {
     }
   });
   
+  router.post('/userAddress', async(req, res) => {
+    const {userid, address_type, street1, street2, city, state, country, zip } = req.body 
+     try{
+            await pool.query(`INSERT INTO userAddress 
+                (userid, address_type, street1, street2, city, state, country, zip ) 
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                [userid, address_type, street1, street2, city, state, country, zip])
+            res.status(200).json({message: 'Address Added'})
+     } catch (error){
+        return res.status(500).json({message: 'Server Error'})
+     }
+})
 
 
 
