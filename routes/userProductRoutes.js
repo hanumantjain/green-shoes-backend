@@ -5,10 +5,11 @@ const router = express.Router();
 //Get Products
 router.get('/', async (req, res) => {
     try {
-        const result = await pool.query(`SELECT product_id, name, description, price, image_url FROM products`)
+        const result = await pool.query(`SELECT product_id, name, description, price, image_url, color FROM products`)
         res.status(200).json(result.rows)
     } catch (error) {
-        return res.status(500).json({message: 'Server Error'})
+        console.error('Error getting product:', error);  // Log the full error
+        res.status(500).json({ error: 'An error occurred', details: error.message });
     }
 })
 
@@ -18,7 +19,7 @@ router.get('/:id', async (req, res) => {
 
     try{
         const result = await pool.query(`
-            SELECT p.product_id, p.name, p.description, p.price, p.image_url, c.category_name,
+            SELECT p.product_id, p.name, p.description, p.price, p.image_url, p.color, c.category_name,
                 json_agg(json_build_object(
                     'size_label', s.size_label,
                     'stock_quantity', ps.stock_quantity

@@ -4,6 +4,38 @@ const pool = require('../connection/postgreSQLConnect')
 const router = express.Router()
 require('dotenv').config()
 
+//Add Sizes
+router.post('/add-size', async (req, res) => {
+    const { size_label } = req.body;
+  
+    // Input validation (e.g., checking if size_label exists)
+    if (!size_label) {
+      return res.status(400).json({ message: 'Size label is required.' });
+    }
+  
+    try {
+      // SQL query to insert the new size
+      const query = `
+        INSERT INTO sizes (size_label)
+        VALUES ($1)
+        RETURNING size_id, size_label, created_at, updated_at;
+      `;
+      const values = [size_label];
+  
+      const result = await pool.query(query, values);
+      
+      // Respond with the newly added size
+      res.status(201).json({
+        message: 'Size added successfully',
+        size: result.rows[0],  // This contains the inserted row
+      });
+    } catch (error) {
+      console.error('Error inserting size:', error);
+      res.status(500).json({ message: 'Failed to add size' });
+    }
+  });
+
+
 //Admin Register 
 router.post('/adminHome', async (req, res) => {
     const {name, username, password} = req.body
@@ -195,7 +227,9 @@ router.get('/getProducts/:id', async (req, res) => {
             res.status(200).json(result.rows[0])
 
     } catch (error) {
-        return res.status(500).json({message: 'Server Error'})
+        // return res.status(500).json({message: 'Server Error'})
+        console.error('Error adding product:', error);  // Log the full error
+        return res.status(500).json({ error: 'An error occurred', details: error.message });
     }
 })
 

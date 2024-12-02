@@ -4,19 +4,19 @@ const router = express.Router();
 
 //Add Products
 router.post('/', async(req, res) => {
-    const { name, description, price, category_id, image_url, sizes, color } = req.body
-    if (!name || !price || !category_id || !sizes || !color) {
+    const { name, description, price, category, image_url, sizes, color } = req.body
+    if (!name || !price || !category || !sizes || !color) {
         return res.status(400).json({ error: "Missing required fields" });
     }
     try {
         await pool.query('BEGIN')
 
         const addProductQuery = `
-            INSERT INTO products (name, description, price, category_id, image_url, color, created_at, updated_at)
+            INSERT INTO products (name, description, price, category, image_url, color, created_at, updated_at)
             VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             RETURNING product_id
         `
-        const productResult = await pool.query(addProductQuery, [ name, description, price, category_id, image_url, color])
+        const productResult = await pool.query(addProductQuery, [ name, description, price, category, image_url, color])
         const productId = productResult.rows[0].product_id
         console.log(productId)
         const addSizeQury = `
@@ -31,14 +31,15 @@ router.post('/', async(req, res) => {
         res.status(201).json({ message: "Product added successfully", productId })
     } catch  (error) {
         await pool.query('ROLLBACK')
-        res.status(500).json({error: 'An error'})
+        console.error('Error adding product:', error);  // Log the full error
+        res.status(500).json({ error: 'An error occurred', details: error.message });
     }
 })
 
 //Update Product
 router.put('/:id', async (req, res) => {
     const productId = req.params.id;
-    const { name, description, price, gender, category_id, image_url } = req.body;
+    const { name, description, price, gender, category, image_url } = req.body;
   
     // Validate the productId
     if (!productId) {
@@ -53,13 +54,13 @@ router.put('/:id', async (req, res) => {
         description = COALESCE($2, description),
         price = COALESCE($3, price),
         gender = COALESCE($4, gender),
-        category_id = COALESCE($5, category_id),
+        category = COALESCE($5, category),
         image_url = COALESCE($6, image_url),
         updated_at = CURRENT_TIMESTAMP
       WHERE product_id = $7
       RETURNING *;
     `;
-    const values = [name, description, price, gender, category_id, image_url, productId];
+    const values = [name, description, price, gender, category, image_url, productId];
   
     try {
       // Execute the query
@@ -260,5 +261,7 @@ router.delete('/api/admin/products/:id/variants/:variantId', async (req, res) =>
       res.status(500).json({ message: 'Failed to delete product variant', error: error.message });
     }
 });
+
+
 
 module.exports = router;
