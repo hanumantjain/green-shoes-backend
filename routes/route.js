@@ -132,7 +132,6 @@ router.post('/userLogin', async (req, res) => {
 })
 
 //userLogout
-
 router.post('/logout', (res, req) => {
     res.clearCookie('userId')
     res.status(200). json({ message: 'Logged out successfully' })
