@@ -168,33 +168,54 @@ router.get('/getCart', async (req, res) => {
 
   
   // Backend route
-  router.post('/addAddress/:userId', async (req, res) => {
-    const { userId } = req.params;
-    const { address_type, street1, street2, city, state, zip, country } = req.body;
-
-    if (!address_type || !street1 || !city || !state || !zip || !country) {
-        return res.status(400).json({ message: 'Missing required fields' });
+  router.post('/createAddress', async (req, res) => {
+    const {
+      user_id,
+      address_type,
+      street1,
+      street2,
+      city,
+      state,
+      zip,
+      country,
+    } = req.body;
+  
+    // Validate input fields
+    if (!user_id || !address_type || !street1 || !city || !state || !zip || !country) {
+      return res.status(400).json({ message: 'All fields are required' });
     }
-
+  
+    // SQL query to insert the new address into the userAddress table
+    const query = `
+      INSERT INTO userAddress (user_id, address_type, street1, street2, city, state, zip, country)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id, user_id, address_type, street1, street2, city, state, zip, country, created_at;
+    `;
+  
+    const values = [
+      user_id,
+      address_type,
+      street1,
+      street2 || null, // If street2 is not provided, set it to null
+      city,
+      state,
+      zip,
+      country,
+    ];
+  
     try {
-        // Create a query to insert address into the userAddress table
-        const query = `
-            INSERT INTO userAddress (user_id, address_type, street1, street2, city, state, zip, country)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING *;
-        `;
-
-        // Execute the query using the pool's query method
-        const result = await pool.query(query, [userId, address_type, street1, street2, city, state, zip, country]);
-
-        // Send the newly added address as a response
-        res.status(201).json({
-            message: `${address_type} Address added successfully`,
-            address: result.rows[0], // The inserted address details
-        });
+      const result = await pool.query(query, values);
+      const newAddress = result.rows[0]; // Get the newly inserted address
+      res.status(201).json({
+        message: 'Address added successfully',
+        address: newAddress,
+      });
     } catch (err) {
-        console.error('Error adding address:', err);
-        res.status(500).json({ message: 'Failed to add address' });
+      console.error('Error adding address:', err);
+      res.status(500).json({
+        message: 'Failed to add address',
+        error: err.message,
+      });
     }
   });
 
@@ -361,5 +382,30 @@ router.delete('/payment-details/:userId/:cardId', async (req, res) => {
     res.status(500).json({ error: 'An error occurred while removing the card. Please try again later.' });
   }
 })
+
+//user info
+router.get('/user/:userId', async (req, res) => {
+  const userId = req.params.userId;
+  try {
+      const query = `
+          SELECT firstName, lastName, userEmail
+          FROM users
+          WHERE user_id = $1;
+      `;
+
+      const result = await pool.query(query, [userId]);
+
+      if (result.rows.length > 0) {
+          // Send the user data excluding password
+          res.json(result.rows[0]);
+      } else {
+          // User not found
+          res.status(404).json({ message: 'User not found' });
+      }
+  } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: 'Internal server error' });
+  }
+});
 
   module.exports = router
