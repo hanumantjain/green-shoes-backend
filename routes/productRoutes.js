@@ -46,6 +46,88 @@ router.post('/addProducts', async (req, res) => {
     }
 })
 
+router.put('/addProducts/:id/discount', async (req, res) => {
+    const { id } = req.params;
+    const { discountType, discountValue, discountStart, discountEnd, isActive } = req.body;
+  
+    try {
+      // Update the product in the database
+      const query = `
+        UPDATE products
+        SET
+          discount_type = $1,
+          discount_value = $2,
+          discount_start = $3,
+          discount_end = $4,
+          is_active = $5
+        WHERE product_id = $6
+        RETURNING *;
+      `;
+  
+      const values = [
+        discountType,
+        discountValue,
+        discountStart,
+        discountEnd,
+        isActive,
+        id,
+      ];
+  
+      const result = await pool.query(query, values);
+  
+      // Check if the product was updated
+      if (result.rowCount === 0) {
+        return res.status(404).json({ error: 'Product not found' });
+      }
+  
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating discount:', error);
+      res.status(500).json({ error: 'Failed to update discount' });
+    }
+  });
+
+  router.get('/getProducts/promotions', async (req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT product_id, 
+               name, 
+               description, 
+               price, 
+               color, 
+               category_name, 
+               image_urls[1] AS image_url, -- Get the first image
+               discount_type,
+               discount_value,
+               discount_start,
+               discount_end,
+               is_active
+        FROM products
+        JOIN categories ON products.category_id = categories.category_id;
+      `);
+
+      const products = result.rows;
+
+
+      const productsWithDiscount = products.map(product => ({
+        ...product,
+        discountedPrice: calculateDiscountedPrice(product),
+      }));
+      
+      // Return the result as JSON
+      res.status(200).json(productsWithDiscount);
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Failed to fetch products' });
+    }
+  });
+
+  function calculateDiscountedPrice(product) {
+    if (!product.is_active) return product.price;
+    return product.price - (product.price * product.discount_value / 100);
+}
+
 //Get Products
 router.get('/getProducts', async (req, res) => {
     try {
@@ -56,19 +138,34 @@ router.get('/getProducts', async (req, res) => {
                price, 
                color, 
                category_name, 
-               image_urls[1] AS image_url -- Get the first image
+               image_urls[1] AS image_url, -- Get the first image
+               discount_type,
+               discount_value,
+               discount_start,
+               discount_end,
+               is_active
         FROM products
         JOIN categories ON products.category_id = categories.category_id;
       `);
+
+      const products = result.rows;
+
+
+      const productsWithDiscount = products.map(product => ({
+        ...product,
+        discountedPrice: calculateDiscountedPrice(product),
+      }));
       
       // Return the result as JSON
-      res.status(200).json(result.rows);
+      res.status(200).json(productsWithDiscount);
+
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Failed to fetch products' });
     }
   });
 
+//Get Product by id
 //Get Product by id
 router.get('/getProducts/:id', async (req, res) => {
     const productId = parseInt(req.params.id);
@@ -87,7 +184,12 @@ router.get('/getProducts/:id', async (req, res) => {
                 json_agg(json_build_object(
                     'size_label', s.size_label,
                     'stock_quantity', ps.stock_quantity
-                ) ORDER BY s.size_label) AS sizes
+                ) ORDER BY s.size_label) AS sizes,
+               p.discount_type,
+               p.discount_value,
+               p.discount_start,
+               p.discount_end,
+               is_active
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.category_id
             LEFT JOIN product_sizes ps ON p.product_id = ps.product_id
@@ -96,17 +198,26 @@ router.get('/getProducts/:id', async (req, res) => {
             GROUP BY p.product_id, c.category_name
         `, [productId]);
 
-        if (result.rows.length === 0) {
+        
+
+        const product = result.rows[0];
+
+        
+
+        const productWithDiscount = {
+            ...product, // spread the original product properties
+            discountedPrice: calculateDiscountedPrice(product),
+        };
+        if (productWithDiscount.rows === 0) {
             return res.status(404).json({ error: 'Product not found' });
         }
 
-        res.status(200).json(result.rows[0]);
+        res.status(200).json(productWithDiscount);
     } catch (error) {
         console.error(error);
         return res.status(500).json({ message: 'Server Error', error: error.message });
     }
 });
-
 
 //Get categories
 router.get('/getCategory', async(req, res) => {

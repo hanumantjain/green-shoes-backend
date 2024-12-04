@@ -73,7 +73,7 @@ router.post('/checkUser', async (req, res) => {
 
 // UserSignUp
 router.post('/userSignUp', async (req, res) => {
-    const { firstName, lastName, userEmail, userPassword } = req.body
+    const { firstName, lastName, userEmail, phoneNumber, userPassword } = req.body
     try {
         // Hash the password
         const salt = await bcrypt.genSalt(10);
@@ -81,9 +81,9 @@ router.post('/userSignUp', async (req, res) => {
 
         // Insert new user into the database
         const result = await pool.query(
-            `INSERT INTO users (firstName, lastName, userEmail, userPassword) 
-             VALUES ($1, $2, $3, $4) RETURNING user_id, firstName`,
-            [firstName, lastName, userEmail, hashedPassword]
+            `INSERT INTO users (firstName, lastName, userEmail, phoneNumber, userPassword) 
+             VALUES ($1, $2, $3, $4, $5) RETURNING user_id, firstName`,
+            [firstName, lastName, userEmail, phoneNumber, hashedPassword]
         );
 
         const newUser = result.rows[0];

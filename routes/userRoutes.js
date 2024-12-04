@@ -408,4 +408,96 @@ router.get('/user/:userId', async (req, res) => {
   }
 });
 
-  module.exports = router
+router.post('/createOrder', async (req, res) => {
+  const { orders } = req.body;
+
+  if (!orders || !Array.isArray(orders)) {
+    return res.status(400).json({ error: 'Invalid order data' });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const orderPromises = orders.map(async (order) => {
+      const {
+        user_id,
+        product_id,
+        size,
+        quantity,
+        total_amount,
+        shipping_address,
+      } = order;
+
+      if (!user_id || !product_id || !size || !quantity || !total_amount || !shipping_address) {
+        throw new Error('Missing required order fields');
+      }
+
+      const query = `
+        INSERT INTO orders (user_id, product_id, size, quantity, total_amount, shipping_address)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *;
+      `;
+
+      const values = [
+        user_id,
+        product_id,
+        size,
+        quantity,
+        total_amount,
+        shipping_address,
+      ];
+
+      const result = await client.query(query, values);
+      return result.rows[0];
+    });
+
+    const insertedOrders = await Promise.all(orderPromises);
+
+    await client.query('COMMIT');
+    res.status(201).json({ message: 'Orders created successfully', orders: insertedOrders });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error creating orders:', err);
+    res.status(500).json({ error: 'Failed to create orders' });
+  } finally {
+    client.release();
+  }
+});
+
+router.get('/getOrders', async (req, res) => {
+  const { user_id, product_id } = req.query;
+
+  // Construct the base query
+  let query = 'SELECT * FROM orders';
+  const values = [];
+  let conditions = [];
+
+  // If a user_id or product_id is provided, filter the orders
+  if (user_id) {
+    conditions.push('user_id = $' + (conditions.length + 1));
+    values.push(user_id);
+  }
+
+  if (product_id) {
+    conditions.push('product_id = $' + (conditions.length + 1));
+    values.push(product_id);
+  }
+
+  // Add the conditions to the query if any
+  if (conditions.length > 0) {
+    query += ' WHERE ' + conditions.join(' AND ');
+  }
+
+  try {
+    const result = await pool.query(query, values);
+    res.status(200).json({ orders: result.rows });
+  } catch (err) {
+    console.error('Error fetching orders:', err);
+    res.status(500).json({ error: 'Failed to fetch orders' });
+  }
+});
+
+
+module.exports = router
