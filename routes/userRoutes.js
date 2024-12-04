@@ -1,6 +1,7 @@
 const express = require('express')
 const pool = require('../connection/postgreSQLConnect')
 const router = express.Router()
+const bcrypt = require('bcryptjs/dist/bcrypt')
 require('dotenv').config()
 
 router.post('/addToCart', async (req, res) => {
@@ -388,7 +389,7 @@ router.get('/user/:userId', async (req, res) => {
   const userId = req.params.userId;
   try {
       const query = `
-          SELECT firstName, lastName, userEmail
+          SELECT firstName, lastName, userEmail, phoneNumber
           FROM users
           WHERE user_id = $1;
       `;
@@ -407,6 +408,46 @@ router.get('/user/:userId', async (req, res) => {
       res.status(500).json({ message: 'Internal server error' });
   }
 });
+
+//edit user info
+router.put('/user/:userId', async (req, res) => {
+  const userId = req.params.userId; // User ID from URL parameter
+  const { firstname, lastname, useremail, phonenumber } = req.body; // Data from the request body
+
+  // Validate incoming data
+  if (!firstname || !lastname || !useremail || !phonenumber) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  // Query to update user information in the database
+  const updateQuery = `
+    UPDATE users
+    SET firstname = $1, lastname = $2, useremail = $3, phonenumber = $4
+    WHERE user_id = $5
+    RETURNING user_id, firstname, lastname, useremail, phonenumber;
+  `;
+
+  const values = [firstname, lastname, useremail, phonenumber, userId];
+
+  try {
+    const result = await pool.query(updateQuery, values);
+
+    // Check if the user was found and updated
+    if (result.rows.length > 0) {
+      const updatedUser = result.rows[0];
+      return res.status(200).json({
+        message: 'User info updated successfully!',
+        user: updatedUser,
+      });
+    } else {
+      return res.status(404).json({ error: 'User not found' });
+    }
+  } catch (err) {
+    console.error('Error updating user info:', err);
+    return res.status(500).json({ error: 'An error occurred while updating user info' });
+  }
+});
+
 
 router.post('/createOrder', async (req, res) => {
   const { orders } = req.body;
