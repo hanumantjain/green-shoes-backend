@@ -3,6 +3,7 @@ const cors = require('cors')
 const routes = require('./routes/route')
 const productRoutes = require('./routes/productRoutes')
 const userRoutes = require('./routes/userRoutes')
+const stripeController = require('./routes/stripeController')
 const cookieParser = require('cookie-parser')
 
 const app = express()
@@ -19,6 +20,7 @@ app.use(cookieParser())
 app.use('/', routes)
 app.use('/', productRoutes)
 app.use('/', userRoutes)
+app.use('/', stripeController)
 
 app.listen(3001, () => {
     console.log('Server runs')
