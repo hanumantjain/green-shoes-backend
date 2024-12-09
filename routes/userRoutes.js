@@ -77,32 +77,62 @@ router.post('/addToCart', async (req, res) => {
   });
   
 
-  router.post('/removeCartItem', async (req, res) => {
-    const { user_id, product_id, size } = req.body;
+router.post('/removeCartItem', async (req, res) => {
+  const { user_id, product_id, size } = req.body;
 
-    try {
-        const cartItem = await pool.query(
-            'SELECT * FROM cart WHERE user_id = $1 AND product_id = $2 AND size = $3',
-            [user_id, product_id, size]
-        );
+  try {
+      const cartItem = await pool.query(
+          'SELECT * FROM cart WHERE user_id = $1 AND product_id = $2 AND size = $3',
+          [user_id, product_id, size]
+      );
 
-        if (cartItem.rows.length === 0) {
-            return res.status(404).json({ error: 'Cart item not found' });
-        }
+      if (cartItem.rows.length === 0) {
+          return res.status(404).json({ error: 'Cart item not found' });
+      }
 
-        // Remove the item completely from the cart
-        await pool.query(
-            'DELETE FROM cart WHERE user_id = $1 AND product_id = $2 AND size = $3',
-            [user_id, product_id, size]
-        );
+      // Remove the item completely from the cart
+      await pool.query(
+          'DELETE FROM cart WHERE user_id = $1 AND product_id = $2 AND size = $3',
+          [user_id, product_id, size]
+      );
 
-        return res.status(200).json({ message: 'Product removed from cart' });
-    } catch (error) {
-        console.error('Error:', error);
-        return res.status(500).json({ error: 'Failed to remove product from cart' });
-    }
+      return res.status(200).json({ message: 'Product removed from cart' });
+  } catch (error) {
+      console.error('Error:', error);
+      return res.status(500).json({ error: 'Failed to remove product from cart' });
+  }
 });
 
+router.post('/removeCart', async (req, res) => {
+  const { user_id, cartItems } = req.body;  // cartItems is an array of { product_id, size }
+
+  try {
+    for (const item of cartItems) {
+      const { product_id, size } = item;
+
+      // Check if the item exists in the cart
+      const cartItem = await pool.query(
+        'SELECT * FROM cart WHERE user_id = $1 AND product_id = $2 AND size = $3',
+        [user_id, product_id, size]
+      );
+
+      if (cartItem.rows.length === 0) {
+        return res.status(404).json({ error: `Cart item not found for product_id ${product_id} and size ${size}` });
+      }
+
+      // Remove the item completely from the cart
+      await pool.query(
+        'DELETE FROM cart WHERE user_id = $1 AND product_id = $2 AND size = $3',
+        [user_id, product_id, size]
+      );
+    }
+
+    return res.status(200).json({ message: 'Products removed from cart' });
+  } catch (error) {
+    console.error('Error:', error);
+    return res.status(500).json({ error: 'Failed to remove products from cart' });
+  }
+});
 
 router.get('/getCart', async (req, res) => {
   try {
@@ -475,15 +505,17 @@ router.post('/createOrder', async (req, res) => {
         throw new Error('Missing required order fields');
       }
 
+      // Insert the order into the orders table
       const query = `
-        INSERT INTO orders (user_id, product_id, size, quantity, total_amount, shipping_address)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO orders (user_id, product_id, name, size, quantity, total_amount, shipping_address)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *;
       `;
 
       const values = [
         user_id,
         product_id,
+        order.name, // Assuming name is part of the order object
         size,
         quantity,
         total_amount,
@@ -491,7 +523,27 @@ router.post('/createOrder', async (req, res) => {
       ];
 
       const result = await client.query(query, values);
-      return result.rows[0];
+      const insertedOrder = result.rows[0];
+
+      // Update the stock quantity in the product_sizes table
+      const updateQuery = `
+        UPDATE product_sizes
+        SET stock_quantity = stock_quantity - $1
+        WHERE product_id = $2 AND size_id = (
+          SELECT size_id FROM sizes WHERE size_label = $3
+        ) AND stock_quantity >= $1
+        RETURNING stock_quantity;
+      `;
+      
+      const updateValues = [quantity, product_id, size];
+      const updateResult = await client.query(updateQuery, updateValues);
+
+      if (updateResult.rows.length === 0) {
+        // If no rows are updated, it means there was not enough stock
+        throw new Error('Not enough stock available');
+      }
+
+      return insertedOrder;
     });
 
     const insertedOrders = await Promise.all(orderPromises);
@@ -501,11 +553,16 @@ router.post('/createOrder', async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Error creating orders:', err);
-    res.status(500).json({ error: 'Failed to create orders' });
+    if (err.message === 'Not enough stock available') {
+      res.status(401).json({ error: 'Insufficient stock for one or more items' });
+    } else {
+      res.status(500).json({ error: 'Failed to create orders' });
+    }
   } finally {
     client.release();
   }
 });
+
 
 router.get('/getOrders', async (req, res) => {
   const { user_id, product_id } = req.query;
