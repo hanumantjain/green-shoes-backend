@@ -187,6 +187,7 @@ router.get('/getProducts', async (req, res) => {
   });
 
 //Get Product by id
+//Get Product by id
 router.get('/getProducts/:id', async (req, res) => {
     const productId = parseInt(req.params.id);
 
@@ -204,7 +205,12 @@ router.get('/getProducts/:id', async (req, res) => {
                 json_agg(json_build_object(
                     'size_label', s.size_label,
                     'stock_quantity', ps.stock_quantity
-                ) ORDER BY s.size_label) AS sizes
+                ) ORDER BY s.size_label) AS sizes,
+               p.discount_type,
+               p.discount_value,
+               p.discount_start,
+               p.discount_end,
+               is_active
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.category_id
             LEFT JOIN product_sizes ps ON p.product_id = ps.product_id
@@ -213,25 +219,26 @@ router.get('/getProducts/:id', async (req, res) => {
             GROUP BY p.product_id, c.category_name
         `, [productId]);
 
-        const product = result.rows;
+        
+
+        const product = result.rows[0];
+
+        
 
         const productWithDiscount = {
             ...product, // spread the original product properties
             discountedPrice: calculateDiscountedPrice(product),
         };
-
-        console.log(productWithDiscount)
         if (productWithDiscount.rows === 0) {
             return res.status(404).json({ error: 'Product not found' });
         }
 
-        res.status(200).json(productWithDiscount[0]);
+        res.status(200).json(productWithDiscount);
     } catch (error) {
         console.error(error);
         return res.status(500).json({ message: 'Server Error', error: error.message });
     }
 });
-
 
 //Get categories
 router.get('/getCategory', async(req, res) => {
