@@ -3,6 +3,7 @@ const pool = require('../connection/postgreSQLConnect')
 const router = express.Router()
 const bcrypt = require('bcryptjs/dist/bcrypt')
 require('dotenv').config()
+const saltRounds = 10
 
 router.post('/addToCart', async (req, res) => {
     const { user_id, productId, size, quantity = 1 } = req.body;
@@ -340,6 +341,38 @@ router.get('/payment-details/:userId', async (req, res) => {
   }
 });
 
+router.post('/payment-details/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const { card_number, cardholder_name, expiry_date, cvv } = req.body;
+
+  // Ensure all fields are provided
+  if (!card_number || !cardholder_name || !expiry_date || !cvv) {
+    return res.status(400).json({ error: 'All fields are required.' });
+  }
+
+  try {
+    // Hash the CVV before saving it
+    const hashedCvv = await bcrypt.hash(cvv, saltRounds);
+
+    // SQL query to insert a new card
+    const query = `
+      INSERT INTO payment_details (user_id, card_number, cardholder_name, expiry_date, cvv)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *;
+    `;
+
+    // Execute the query
+    const result = await pool.query(query, [userId, card_number, cardholder_name, expiry_date, hashedCvv]);
+
+    // Send back the inserted row (or just return success)
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to add payment details.' });
+  }
+});
+
+// PUT route to update payment details
 router.put('/payment-details/:userId', async (req, res) => {
   const { userId } = req.params;
   const { cardId, cardNumber, cardholderName, expiryDate, cvv } = req.body;
@@ -350,10 +383,13 @@ router.put('/payment-details/:userId', async (req, res) => {
   }
 
   try {
+    // Hash the CVV before saving it
+    const hashedCvv = await bcrypt.hash(cvv, saltRounds);
+
     // Update the payment details in the database
     const result = await pool.query(
       'UPDATE payment_details SET card_number = $1, cardholder_name = $2, expiry_date = $3, cvv = $4 WHERE id = $5 AND user_id = $6',
-      [cardNumber, cardholderName, expiryDate, cvv, cardId, userId]
+      [cardNumber, cardholderName, expiryDate, hashedCvv, cardId, userId]
     );
 
     if (result.rowCount === 0) {
@@ -366,30 +402,6 @@ router.put('/payment-details/:userId', async (req, res) => {
     res.status(500).json({ error: 'Failed to update payment details.' });
   }
 });
-
-
-router.post('/payment-details/:userId', async (req, res) => {
-  const { userId } = req.params;  // User ID from the URL params
-  const { card_number, cardholder_name, expiry_date, cvv } = req.body;  // Get details from the request body
-
-  // SQL query to insert a new card
-  const query = `
-    INSERT INTO payment_details (user_id, card_number, cardholder_name, expiry_date, cvv)
-    VALUES ($1, $2, $3, $4, $5)
-    RETURNING *;
-  `;
-
-  try {
-    // Execute the query
-    const result = await pool.query(query, [userId, card_number, cardholder_name, expiry_date, cvv]);
-    
-    // Send back the inserted row (or just return success)
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to add payment details.' });
-  }
-})
 
 router.delete('/payment-details/:userId/:cardId', async (req, res) => {
   const { userId, cardId } = req.params;

@@ -21,7 +21,7 @@ const GuestSchema = async (client) =>{
         card_number VARCHAR(20),
         card_name VARCHAR(100),
         expiry VARCHAR(7),
-        cvv VARCHAR(4),
+        cvv VARCHAR(60),
         total_amount DECIMAL
     );
     `

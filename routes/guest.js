@@ -1,6 +1,8 @@
 const express = require('express')
 const pool = require('../connection/postgreSQLConnect')
 const router = express.Router()
+const bcrypt = require('bcryptjs/dist/bcrypt')
+const saltRounds = 10
 
 router.post('/submitAllDetails', async (req, res) => {
   const {
@@ -41,7 +43,8 @@ router.post('/submitAllDetails', async (req, res) => {
       cvv
     } = paymentDetails;
 
-    // SQL query to insert checkout data into the database
+    const hashedCvv = await bcrypt.hash(cvv, saltRounds)
+
     const query = `
       INSERT INTO guest_checkout (
         first_name, last_name, email, phone_number,
@@ -61,7 +64,7 @@ router.post('/submitAllDetails', async (req, res) => {
       firstName, lastName, email, phoneNumber,
       shippingStreet1, shippingStreet2, shippingCity, shippingState, shippingZip, shippingCountry,
       billingStreet1, billingStreet2, billingCity, billingState, billingZip, billingCountry,
-      cardNumber, cardName, expiry, cvv, totalAmount
+      cardNumber, cardName, expiry, hashedCvv, totalAmount
     ];
 
     // Execute SQL query
@@ -74,6 +77,46 @@ router.post('/submitAllDetails', async (req, res) => {
     res.status(500).json({ message: 'Failed to save checkout data' });
   }
 })
+
+router.post('/removeSize', async (req, res) => {
+  const cartItems = req.body;
+  console.log('Request body:', req.body);
+  console.log('cartItems:', cartItems);
+
+  try {
+    await pool.query('BEGIN');
+
+    for (const item of cartItems) {
+      const { productId, size, quantity } = item;
+
+      const updateQuery = `
+        UPDATE product_sizes
+        SET stock_quantity = stock_quantity - $1
+        WHERE product_id = $2 AND size_id = (
+          SELECT size_id FROM sizes WHERE size_label = $3
+        ) AND stock_quantity >= $1
+        RETURNING stock_quantity;
+      `;
+      
+      const result = await pool.query(updateQuery, [
+        quantity, productId, size]);
+
+      if (result.rowCount === 0) {
+        throw new Error(`Not enough stock for product ${productId}, size ${size}`);
+      }
+    }
+
+    await pool.query('COMMIT');
+    
+    return res.status(200).json({ message: 'Stock updated successfully' });
+  } catch (error) {
+    await pool.query('ROLLBACK');
+    console.error('Error:', error);
+    return res.status(500).json({ error: 'Failed to update stock' });
+  }
+});
+
+
 
 
 module.exports = router

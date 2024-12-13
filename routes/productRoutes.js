@@ -87,7 +87,7 @@ router.put('/addProducts/:id/discount', async (req, res) => {
     }
   });
 
-  router.get('/getProducts/promotions', async (req, res) => {
+router.get('/getProducts/promotions', async (req, res) => {
     try {
       const result = await pool.query(`
         SELECT product_id, 
@@ -123,7 +123,7 @@ router.put('/addProducts/:id/discount', async (req, res) => {
     }
   });
 
-  function calculateDiscountedPrice(product) {
+function calculateDiscountedPrice(product) {
     if (!product.is_active) return product.price;
     return product.price - (product.price * product.discount_value / 100);
 }
@@ -165,7 +165,6 @@ router.get('/getProducts', async (req, res) => {
     }
   });
 
-//Get Product by id
 //Get Product by id
 router.get('/getProducts/:id', async (req, res) => {
     const productId = parseInt(req.params.id);
