@@ -3,6 +3,24 @@ const bcrypt = require('bcryptjs/dist/bcrypt')
 const pool = require('../connection/postgreSQLConnect')
 const router = express.Router()
 require('dotenv').config()
+const forge = require("node-forge");
+const fs = require("fs");
+
+
+// Function to decrypt data
+const decryptData = (encryptedData) => {
+    const privateKeyPem = fs.readFileSync("private_key.pem", "utf8");
+    const privateKey = forge.pki.privateKeyFromPem(privateKeyPem);
+
+    // Decode Base64 data
+    const encryptedBytes = forge.util.decode64(encryptedData);
+
+    // Decrypt data
+    return privateKey.decrypt(encryptedBytes, "RSA-OAEP", {
+        md: forge.md.sha256.create(),
+    });
+};
+
 
 //Admin Register 
 router.post('/adminHome', async (req, res) => {
@@ -73,17 +91,22 @@ router.post('/checkUser', async (req, res) => {
 
 // UserSignUp
 router.post('/userSignUp', async (req, res) => {
-    const { firstName, lastName, userEmail, userPassword } = req.body
+    const { firstName, lastName, userEmail, phoneNumber,userPassword } = req.body
     try {
+
+        // Decrypt the encrypted password
+        const decryptedPassword = decryptData(userPassword);
         // Hash the password
         const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(userPassword, salt)
+        const hashedPassword = await bcrypt.hash(decryptedPassword, salt)
+
+        
 
         // Insert new user into the database
         const result = await pool.query(
-            `INSERT INTO users (firstName, lastName, userEmail, userPassword) 
-             VALUES ($1, $2, $3, $4) RETURNING user_id, firstName`,
-            [firstName, lastName, userEmail, hashedPassword]
+            `INSERT INTO users (firstName, lastName, userEmail, phoneNumber, userPassword) 
+             VALUES ($1, $2, $3, $4, $5) RETURNING user_id, firstName`,
+            [firstName, lastName, userEmail, phoneNumber, hashedPassword]
         );
 
         const newUser = result.rows[0];

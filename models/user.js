@@ -5,6 +5,7 @@ const UserSchema = async (client) =>{
         firstName VARCHAR(255) NOT NULL,
         lastName VARCHAR(255) NOT NULL,
         userEmail VARCHAR(255) UNIQUE NOT NULL,
+        phoneNumber VARCHAR(255) NOT NULL,
         userPassword VARCHAR(255) NOT NULL,
         createdAt TIMESTAMP DEFAULT NOW()
     );
