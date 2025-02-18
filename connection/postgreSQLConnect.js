@@ -10,7 +10,7 @@ const ProductsSchema = require('../models/products')
 const CartSchema = require('../models/cart')
 const PaymentDetailsSchema = require('../models/payment')
 const OrderSchema = require('../models/orders')
-
+const GuestSchema = require('../models/guest')
 const pool = new Pool({
     host: process.env.HOST,
     user: process.env.USER,
@@ -34,6 +34,7 @@ const initializeDatabase = async () => {
         await CartSchema(client)
         await PaymentDetailsSchema(client)
         await OrderSchema(client)
+        await GuestSchema(client)
         
         console.log("All tables created successfully.")
     } catch (error) {

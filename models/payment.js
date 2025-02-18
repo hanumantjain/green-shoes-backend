@@ -6,7 +6,7 @@ const PaymentDetailsSchema = async (client) => {
         card_number VARCHAR(16) NOT NULL,
         cardholder_name VARCHAR(255) NOT NULL,
         expiry_date VARCHAR(5) NOT NULL,
-        cvv VARCHAR(3) NOT NULL,
+        cvv VARCHAR(60) NOT NULL,
         created_at TIMESTAMP DEFAULT NOW(),
         CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
     );

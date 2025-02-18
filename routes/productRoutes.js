@@ -94,6 +94,46 @@ router.put('/addProducts/:id/discount', async (req, res) => {
     }
   });
 
+router.get('/getProducts/promotions', async (req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT product_id, 
+               name, 
+               description, 
+               price, 
+               color, 
+               category_name, 
+               image_urls[1] AS image_url, -- Get the first image
+               discount_type,
+               discount_value,
+               discount_start,
+               discount_end,
+               is_active
+        FROM products
+        JOIN categories ON products.category_id = categories.category_id;
+      `);
+
+      const products = result.rows;
+
+
+      const productsWithDiscount = products.map(product => ({
+        ...product,
+        discountedPrice: calculateDiscountedPrice(product),
+      }));
+      
+      // Return the result as JSON
+      res.status(200).json(productsWithDiscount);
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Failed to fetch products' });
+    }
+  });
+
+function calculateDiscountedPrice(product) {
+    if (!product.is_active) return product.price;
+    return product.price - (product.price * product.discount_value / 100);
+}
 // const calculateDiscountedPrice = (product) => {
 //     const { price, discountType, discountValue, discountStart, discountEnd, isActive } = product;
   
@@ -109,7 +149,6 @@ router.put('/addProducts/:id/discount', async (req, res) => {
   
 //     return price;
 //   };
-
 
 
 //Get Products

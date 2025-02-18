@@ -1,7 +1,9 @@
 const express = require('express')
 const pool = require('../connection/postgreSQLConnect')
 const router = express.Router()
+const bcrypt = require('bcryptjs/dist/bcrypt')
 require('dotenv').config()
+const saltRounds = 10
 
 router.post('/addToCart', async (req, res) => {
     const { user_id, productId, size, quantity = 1 } = req.body;
@@ -76,32 +78,62 @@ router.post('/addToCart', async (req, res) => {
   });
   
 
-  router.post('/removeCartItem', async (req, res) => {
-    const { user_id, product_id, size } = req.body;
+router.post('/removeCartItem', async (req, res) => {
+  const { user_id, product_id, size } = req.body;
 
-    try {
-        const cartItem = await pool.query(
-            'SELECT * FROM cart WHERE user_id = $1 AND product_id = $2 AND size = $3',
-            [user_id, product_id, size]
-        );
+  try {
+      const cartItem = await pool.query(
+          'SELECT * FROM cart WHERE user_id = $1 AND product_id = $2 AND size = $3',
+          [user_id, product_id, size]
+      );
 
-        if (cartItem.rows.length === 0) {
-            return res.status(404).json({ error: 'Cart item not found' });
-        }
+      if (cartItem.rows.length === 0) {
+          return res.status(404).json({ error: 'Cart item not found' });
+      }
 
-        // Remove the item completely from the cart
-        await pool.query(
-            'DELETE FROM cart WHERE user_id = $1 AND product_id = $2 AND size = $3',
-            [user_id, product_id, size]
-        );
+      // Remove the item completely from the cart
+      await pool.query(
+          'DELETE FROM cart WHERE user_id = $1 AND product_id = $2 AND size = $3',
+          [user_id, product_id, size]
+      );
 
-        return res.status(200).json({ message: 'Product removed from cart' });
-    } catch (error) {
-        console.error('Error:', error);
-        return res.status(500).json({ error: 'Failed to remove product from cart' });
-    }
+      return res.status(200).json({ message: 'Product removed from cart' });
+  } catch (error) {
+      console.error('Error:', error);
+      return res.status(500).json({ error: 'Failed to remove product from cart' });
+  }
 });
 
+router.post('/removeCart', async (req, res) => {
+  const { user_id, cartItems } = req.body;  // cartItems is an array of { product_id, size }
+
+  try {
+    for (const item of cartItems) {
+      const { product_id, size } = item;
+
+      // Check if the item exists in the cart
+      const cartItem = await pool.query(
+        'SELECT * FROM cart WHERE user_id = $1 AND product_id = $2 AND size = $3',
+        [user_id, product_id, size]
+      );
+
+      if (cartItem.rows.length === 0) {
+        return res.status(404).json({ error: `Cart item not found for product_id ${product_id} and size ${size}` });
+      }
+
+      // Remove the item completely from the cart
+      await pool.query(
+        'DELETE FROM cart WHERE user_id = $1 AND product_id = $2 AND size = $3',
+        [user_id, product_id, size]
+      );
+    }
+
+    return res.status(200).json({ message: 'Products removed from cart' });
+  } catch (error) {
+    console.error('Error:', error);
+    return res.status(500).json({ error: 'Failed to remove products from cart' });
+  }
+});
 
 router.get('/getCart', async (req, res) => {
   try {
@@ -189,7 +221,9 @@ router.get('/getCart', async (req, res) => {
     const query = `
       INSERT INTO userAddress (user_id, address_type, street1, street2, city, state, zip, country)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id, user_id, address_type, street1, street2, city, state, zip, country, created_at;
       RETURNING id, user_id, address_type, street1, street2, city, state, zip, country;
+
     `;
   
     const values = [
@@ -309,6 +343,38 @@ router.get('/payment-details/:userId', async (req, res) => {
   }
 });
 
+router.post('/payment-details/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const { card_number, cardholder_name, expiry_date, cvv } = req.body;
+
+  // Ensure all fields are provided
+  if (!card_number || !cardholder_name || !expiry_date || !cvv) {
+    return res.status(400).json({ error: 'All fields are required.' });
+  }
+
+  try {
+    // Hash the CVV before saving it
+    const hashedCvv = await bcrypt.hash(cvv, saltRounds);
+
+    // SQL query to insert a new card
+    const query = `
+      INSERT INTO payment_details (user_id, card_number, cardholder_name, expiry_date, cvv)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *;
+    `;
+
+    // Execute the query
+    const result = await pool.query(query, [userId, card_number, cardholder_name, expiry_date, hashedCvv]);
+
+    // Send back the inserted row (or just return success)
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to add payment details.' });
+  }
+});
+
+// PUT route to update payment details
 router.put('/payment-details/:userId', async (req, res) => {
   const { userId } = req.params;
   const { cardId, cardNumber, cardholderName, expiryDate, cvv } = req.body;
@@ -319,10 +385,13 @@ router.put('/payment-details/:userId', async (req, res) => {
   }
 
   try {
+    // Hash the CVV before saving it
+    const hashedCvv = await bcrypt.hash(cvv, saltRounds);
+
     // Update the payment details in the database
     const result = await pool.query(
       'UPDATE payment_details SET card_number = $1, cardholder_name = $2, expiry_date = $3, cvv = $4 WHERE id = $5 AND user_id = $6',
-      [cardNumber, cardholderName, expiryDate, cvv, cardId, userId]
+      [cardNumber, cardholderName, expiryDate, hashedCvv, cardId, userId]
     );
 
     if (result.rowCount === 0) {
@@ -335,30 +404,6 @@ router.put('/payment-details/:userId', async (req, res) => {
     res.status(500).json({ error: 'Failed to update payment details.' });
   }
 });
-
-
-router.post('/payment-details/:userId', async (req, res) => {
-  const { userId } = req.params;  // User ID from the URL params
-  const { card_number, cardholder_name, expiry_date, cvv } = req.body;  // Get details from the request body
-
-  // SQL query to insert a new card
-  const query = `
-    INSERT INTO payment_details (user_id, card_number, cardholder_name, expiry_date, cvv)
-    VALUES ($1, $2, $3, $4, $5)
-    RETURNING *;
-  `;
-
-  try {
-    // Execute the query
-    const result = await pool.query(query, [userId, card_number, cardholder_name, expiry_date, cvv]);
-    
-    // Send back the inserted row (or just return success)
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to add payment details.' });
-  }
-})
 
 router.delete('/payment-details/:userId/:cardId', async (req, res) => {
   const { userId, cardId } = req.params;
@@ -388,6 +433,7 @@ router.get('/user/:userId', async (req, res) => {
   const userId = req.params.userId;
   try {
       const query = `
+          SELECT firstName, lastName, userEmail, phoneNumber
           SELECT firstName, lastName, userEmail
           FROM users
           WHERE user_id = $1;
@@ -405,6 +451,45 @@ router.get('/user/:userId', async (req, res) => {
   } catch (err) {
       console.error(err);
       res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+//edit user info
+router.put('/user/:userId', async (req, res) => {
+  const userId = req.params.userId; // User ID from URL parameter
+  const { firstname, lastname, useremail, phonenumber } = req.body; // Data from the request body
+
+  // Validate incoming data
+  if (!firstname || !lastname || !useremail || !phonenumber) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  // Query to update user information in the database
+  const updateQuery = `
+    UPDATE users
+    SET firstname = $1, lastname = $2, useremail = $3, phonenumber = $4
+    WHERE user_id = $5
+    RETURNING user_id, firstname, lastname, useremail, phonenumber;
+  `;
+
+  const values = [firstname, lastname, useremail, phonenumber, userId];
+
+  try {
+    const result = await pool.query(updateQuery, values);
+
+    // Check if the user was found and updated
+    if (result.rows.length > 0) {
+      const updatedUser = result.rows[0];
+      return res.status(200).json({
+        message: 'User info updated successfully!',
+        user: updatedUser,
+      });
+    } else {
+      return res.status(404).json({ error: 'User not found' });
+    }
+  } catch (err) {
+    console.error('Error updating user info:', err);
+    return res.status(500).json({ error: 'An error occurred while updating user info' });
   }
 });
 
@@ -434,15 +519,23 @@ router.post('/createOrder', async (req, res) => {
         throw new Error('Missing required order fields');
       }
 
+
+      // Insert the order into the orders table
+      const query = `
+        INSERT INTO orders (user_id, product_id, name, size, quantity, total_amount, shipping_address)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+
       const query = `
         INSERT INTO orders (user_id, product_id, size, quantity, total_amount, shipping_address)
         VALUES ($1, $2, $3, $4, $5, $6)
+
         RETURNING *;
       `;
 
       const values = [
         user_id,
         product_id,
+        order.name, // Assuming name is part of the order object
         size,
         quantity,
         total_amount,
@@ -450,6 +543,27 @@ router.post('/createOrder', async (req, res) => {
       ];
 
       const result = await client.query(query, values);
+      const insertedOrder = result.rows[0];
+
+      // Update the stock quantity in the product_sizes table
+      const updateQuery = `
+        UPDATE product_sizes
+        SET stock_quantity = stock_quantity - $1
+        WHERE product_id = $2 AND size_id = (
+          SELECT size_id FROM sizes WHERE size_label = $3
+        ) AND stock_quantity >= $1
+        RETURNING stock_quantity;
+      `;
+      
+      const updateValues = [quantity, product_id, size];
+      const updateResult = await client.query(updateQuery, updateValues);
+
+      if (updateResult.rows.length === 0) {
+        // If no rows are updated, it means there was not enough stock
+        throw new Error('Not enough stock available');
+      }
+
+      return insertedOrder;
       return result.rows[0];
     });
 
@@ -460,6 +574,11 @@ router.post('/createOrder', async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Error creating orders:', err);
+    if (err.message === 'Not enough stock available') {
+      res.status(401).json({ error: 'Insufficient stock for one or more items' });
+    } else {
+      res.status(500).json({ error: 'Failed to create orders' });
+    }
     res.status(500).json({ error: 'Failed to create orders' });
   } finally {
     client.release();
