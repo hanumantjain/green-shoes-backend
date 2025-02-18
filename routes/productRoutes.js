@@ -46,6 +46,13 @@ router.post('/addProducts', async (req, res) => {
     }
 })
 
+function calculateDiscountedPrice(product) {
+    if (!product.is_active) return product.price;
+    return product.price - (product.price * product.discount_value / 100);
+}
+
+
+//Add discount by product id
 router.put('/addProducts/:id/discount', async (req, res) => {
     const { id } = req.params;
     const { discountType, discountValue, discountStart, discountEnd, isActive } = req.body;
@@ -127,6 +134,22 @@ function calculateDiscountedPrice(product) {
     if (!product.is_active) return product.price;
     return product.price - (product.price * product.discount_value / 100);
 }
+// const calculateDiscountedPrice = (product) => {
+//     const { price, discountType, discountValue, discountStart, discountEnd, isActive } = product;
+  
+//     if (!isActive || !discountStart || !discountEnd) return price;
+//     const now = new Date();
+//     if (now < new Date(discountStart) || now > new Date(discountEnd)) return price;
+  
+//     if (discountType === 'flat') {
+//       return Math.max(0, price - discountValue);
+//     } else if (discountType === 'percentage') {
+//       return Math.max(0, price * (1 - discountValue / 100));
+//     }
+  
+//     return price;
+//   };
+
 
 //Get Products
 router.get('/getProducts', async (req, res) => {
@@ -165,6 +188,44 @@ router.get('/getProducts', async (req, res) => {
     }
   });
 
+  router.get('/getProducts/promotions', async (req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT product_id, 
+               name, 
+               description, 
+               price, 
+               color, 
+               category_name, 
+               image_urls[1] AS image_url, -- Get the first image
+               discount_type,
+               discount_value,
+               discount_start,
+               discount_end,
+               is_active
+        FROM products
+        JOIN categories ON products.category_id = categories.category_id
+        where is_active= TRUE;
+      `);
+
+      const products = result.rows;
+
+
+      const productsWithDiscount = products.map(product => ({
+        ...product,
+        discountedPrice: calculateDiscountedPrice(product),
+      }));
+      
+      // Return the result as JSON
+      res.status(200).json(productsWithDiscount);
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Failed to fetch products' });
+    }
+  });
+
+//Get Product by id
 //Get Product by id
 router.get('/getProducts/:id', async (req, res) => {
     const productId = parseInt(req.params.id);

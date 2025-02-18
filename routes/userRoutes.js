@@ -222,6 +222,8 @@ router.get('/getCart', async (req, res) => {
       INSERT INTO userAddress (user_id, address_type, street1, street2, city, state, zip, country)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id, user_id, address_type, street1, street2, city, state, zip, country, created_at;
+      RETURNING id, user_id, address_type, street1, street2, city, state, zip, country;
+
     `;
   
     const values = [
@@ -432,6 +434,7 @@ router.get('/user/:userId', async (req, res) => {
   try {
       const query = `
           SELECT firstName, lastName, userEmail, phoneNumber
+          SELECT firstName, lastName, userEmail
           FROM users
           WHERE user_id = $1;
       `;
@@ -490,7 +493,6 @@ router.put('/user/:userId', async (req, res) => {
   }
 });
 
-
 router.post('/createOrder', async (req, res) => {
   const { orders } = req.body;
 
@@ -517,10 +519,16 @@ router.post('/createOrder', async (req, res) => {
         throw new Error('Missing required order fields');
       }
 
+
       // Insert the order into the orders table
       const query = `
         INSERT INTO orders (user_id, product_id, name, size, quantity, total_amount, shipping_address)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
+
+      const query = `
+        INSERT INTO orders (user_id, product_id, size, quantity, total_amount, shipping_address)
+        VALUES ($1, $2, $3, $4, $5, $6)
+
         RETURNING *;
       `;
 
@@ -556,6 +564,7 @@ router.post('/createOrder', async (req, res) => {
       }
 
       return insertedOrder;
+      return result.rows[0];
     });
 
     const insertedOrders = await Promise.all(orderPromises);
@@ -570,11 +579,11 @@ router.post('/createOrder', async (req, res) => {
     } else {
       res.status(500).json({ error: 'Failed to create orders' });
     }
+    res.status(500).json({ error: 'Failed to create orders' });
   } finally {
     client.release();
   }
 });
-
 
 router.get('/getOrders', async (req, res) => {
   const { user_id, product_id } = req.query;

@@ -11,7 +11,6 @@ const CartSchema = require('../models/cart')
 const PaymentDetailsSchema = require('../models/payment')
 const OrderSchema = require('../models/orders')
 const GuestSchema = require('../models/guest')
-
 const pool = new Pool({
     host: process.env.HOST,
     user: process.env.USER,
